@@ -1,5 +1,7 @@
 from rest_framework import status, generics
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from .models import CustomUser
 from .serializers import UserSerializer
 from .serializers import LoginSerializer
@@ -68,3 +70,12 @@ class ResetPasswordView(generics.GenericAPIView):
         user.save()
 
         return Response({"message": "비밀번호가 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
+
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
