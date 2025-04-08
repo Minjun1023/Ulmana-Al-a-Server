@@ -1,7 +1,7 @@
 from django.urls import path
 from myapp import views
-from .views import get_random_explanations
-from .views import get_daily_facts
+from myapp.views import get_random_explanations
+from myapp.views import get_daily_facts
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
