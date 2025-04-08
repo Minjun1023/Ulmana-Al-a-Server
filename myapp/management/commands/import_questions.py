@@ -25,14 +25,6 @@ class Command(BaseCommand):
                     skipped_count += 1
                     continue
 
-                # 중복된 질문이 있는지 확인
-                if Question.objects.filter(question_text=row['question']).exists():
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"[SKIP] 이미 등록된 질문입니다: '{row['question'][:30]}...'"))
-                    skipped_count += 1
-                    continue
-
                 # 새 질문 삽입
                 Question.objects.create(
                     genre=genre,
