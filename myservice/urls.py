@@ -1,6 +1,7 @@
 from django.urls import path
 from myapp import views
 from .views import get_random_explanations
+from .views import get_daily_facts
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
@@ -9,4 +10,5 @@ urlpatterns = [
     path('reset-password/', views.ResetPasswordView.as_view(), name='resetpassword')
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('api/questions/random_explanations/', get_random_explanations),
+    path('daily-facts/', get_daily_facts),
 ]
