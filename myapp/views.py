@@ -11,6 +11,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
+from rest_framework.decorators import api_view, permission_classes
+from .models import Question  # ← 문제 모델도 import 필요
+import random
 
 User = get_user_model()
 
@@ -79,3 +82,19 @@ class UserProfileView(APIView):
         user = request.user
         serializer = UserSerializer(user)
         return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_random_explanations(request):
+    user = request.user
+
+    # 유저 관심 장르 ID 가져오기
+    interests = [user.interest1, user.interest2, user.interest3]
+    interests = [i for i in interests if i is not None]
+
+    # 해당 장르 문제 중 랜덤하게 3개 선택
+    questions = Question.objects.filter(genre_id__in=interests)
+    explanations = [q.explanation for q in random.sample(list(questions), min(3, len(questions)))]
+
+    return Response({"explanations": explanations})
