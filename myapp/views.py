@@ -2,23 +2,29 @@ from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from .models import CustomUser
-from .serializers import UserSerializer
-from .serializers import LoginSerializer
-from .serializers import FindIdSerializer
-from .serializers import ResetPasswordSerializer
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view, permission_classes
-from .models import Question  # ← 문제 모델도 import 필요
+
+from .models import CustomUser, Question
+from .serializers import (
+    UserSerializer,
+    LoginSerializer,
+    FindIdSerializer,
+    ResetPasswordSerializer
+)
+
 import random
 
+# 커스텀 유저 모델 가져오기
 User = get_user_model()
 
+# ✅ 회원가입
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
@@ -30,6 +36,8 @@ class RegisterView(generics.CreateAPIView):
             'data': response.data
         })
 
+
+# ✅ 로그인 (JWT 발급)
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
 
@@ -43,6 +51,8 @@ class LoginView(generics.GenericAPIView):
             'access': str(refresh.access_token),
         })
 
+
+# ✅ 아이디(이메일) 찾기
 class FindIdView(generics.GenericAPIView):
     serializer_class = FindIdSerializer
 
@@ -55,6 +65,7 @@ class FindIdView(generics.GenericAPIView):
         })
 
 
+# ✅ 비밀번호 재설정
 class ResetPasswordView(generics.GenericAPIView):
     serializer_class = ResetPasswordSerializer
 
@@ -67,16 +78,16 @@ class ResetPasswordView(generics.GenericAPIView):
         new_password = serializer.validated_data["new_password"]
 
         try:
-            user = User.objects.get(email=email)  # User는 get_user_model()을 통해 CustomUser 모델로 가져옵니다.
+            user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response({"error": "등록되지 않은 이메일입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(new_password)
         user.save()
-
         return Response({"message": "비밀번호가 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
 
 
+# ✅ 사용자 프로필 (관심 주제 포함)
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -86,33 +97,36 @@ class UserProfileView(APIView):
         return Response(serializer.data)
 
 
+# ✅ (선택) JWT 토큰 기반 해설 제공
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_random_explanations(request):
     user = request.user
+    interests = [user.interest_1, user.interest_2, user.interest_3]
+    interests = [i for i in interests if i is not None and i.isdigit()]
+    genre_ids = list(map(int, interests))
 
-    # 유저 관심 장르 ID 가져오기
-    interests = [user.interest1, user.interest2, user.interest3]
-    interests = [i for i in interests if i is not None]
-
-    # 해당 장르 문제 중 랜덤하게 3개 선택
-    questions = Question.objects.filter(genre_id__in=interests)
+    questions = Question.objects.filter(genre_id__in=genre_ids)
     explanations = [q.explanation for q in random.sample(list(questions), min(3, len(questions)))]
-
     return Response({"explanations": explanations})
 
 
+# ✅ 이메일 기반 데일리 해설 제공 (비인증용 or 안드로이드용)
 @csrf_exempt
+@api_view(['GET'])
 def get_daily_facts(request):
-    email = request.GET.get('email')  # 안드로이드에서 보낼 예정
+    email = request.GET.get('email')
 
     try:
         user = CustomUser.objects.get(email=email)
-        genre_ids = []
 
-        for interest in [user.interest1, user.interest2, user.interest3]:
-            if interest:
+        genre_ids = []
+        for interest in [user.interest_1, user.interest_2, user.interest_3]:
+            if interest and interest.isdigit():
                 genre_ids.append(int(interest))
+
+        if not genre_ids:
+            return JsonResponse({'daily_facts': []})  # 관심 장르 없으면 빈 리스트
 
         questions = Question.objects.filter(genre_id__in=genre_ids)
         explanations = list(questions.values_list('explanation', flat=True))
