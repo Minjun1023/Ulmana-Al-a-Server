@@ -10,5 +10,6 @@ urlpatterns = [
     path('reset-password/', views.ResetPasswordView.as_view(), name='resetpassword'),
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('api/questions/random_explanations/', get_random_explanations),
-    path('daily-facts/', get_daily_facts),
+    path('daily-facts/', views.get_daily_facts),
+
 ]
