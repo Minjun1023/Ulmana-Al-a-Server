@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager, Group, Permission
 from django.db import models
 
+# 사용자 관리자
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email, password=None, **extra_fields):
         if not email:
@@ -16,45 +17,36 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(username, email, password, **extra_fields)
 
-# 유저 모델
+# 사용자 모델
 class CustomUser(AbstractUser):
-    email = models.EmailField(unique=True)  # 이메일 필드 (기본키 역할)
-    username = models.CharField(max_length=20, unique=True)  # 닉네임 (중복 방지)
-    score = models.IntegerField(default=0)  # 점수 (기본값 0)
-    
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=20, unique=True)
+    score = models.IntegerField(default=0)
+
     interest_1 = models.CharField(max_length=100, blank=True, null=True)
     interest_2 = models.CharField(max_length=100, blank=True, null=True)
     interest_3 = models.CharField(max_length=100, blank=True, null=True)
 
-    # 그룹 및 권한 설정 (Django 기본 User와 충돌 방지)
-    groups = models.ManyToManyField(
-        Group,
-        related_name="customuser_groups",
-        blank=True,
-    )
-
-    user_permissions = models.ManyToManyField(
-        Permission,
-        related_name="customuser_permissions",
-        blank=True,
-    )
+    groups = models.ManyToManyField(Group, related_name="customuser_groups", blank=True)
+    user_permissions = models.ManyToManyField(Permission, related_name="customuser_permissions", blank=True)
 
     objects = CustomUserManager()
 
-    # 로그인 시 email을 사용하도록 설정
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
     def __str__(self):
         return self.email
-# 퀴즈 장르 모델
+
+# 장르 모델
 class Genre(models.Model):
     genre_id = models.AutoField(primary_key=True)
-    genre_name = models.CharField(max_length=10, unique=True)
+    genre_name = models.CharField(max_length=100, unique=True)
+
     def __str__(self):
         return self.genre_name
 
-# 문제 모델
+# 문제/상식 모델
 class Question(models.Model):
     question_id = models.AutoField(primary_key=True)
     genre = models.ForeignKey(Genre, on_delete=models.CASCADE, related_name="questions")
