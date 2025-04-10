@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
@@ -111,28 +112,34 @@ def get_random_explanations(request):
     return Response({"explanations": explanations})
 
 
-# ✅ 이메일 기반 데일리 해설 제공 (비인증용 or 안드로이드용)
+# ✅ 이메일 기반 데일리 해설 제공 (안드로이드 용)
 @csrf_exempt
-@api_view(['GET'])
+@require_GET
 def get_daily_facts(request):
     email = request.GET.get('email')
 
     try:
         user = CustomUser.objects.get(email=email)
 
-        genre_ids = []
-        for interest in [user.interest_1, user.interest_2, user.interest_3]:
-            if interest and interest.isdigit():
-                genre_ids.append(int(interest))
+        # 관심 분야 리스트 생성
+        interests = [user.interest_1, user.interest_2, user.interest_3]
+        valid_genres = [int(i) for i in interests if i and i.isdigit()]
 
-        if not genre_ids:
-            return JsonResponse({'daily_facts': []})  # 관심 장르 없으면 빈 리스트
+        if not valid_genres:
+            return JsonResponse({'daily_facts': []}, status=200)
 
-        questions = Question.objects.filter(genre_id__in=genre_ids)
+        # 랜덤으로 하나의 분야 선택
+        selected_genre = random.choice(valid_genres)
+
+        # 해당 분야의 문제에서 explanation 추출
+        questions = Question.objects.filter(genre_id=selected_genre)
         explanations = list(questions.values_list('explanation', flat=True))
         random.shuffle(explanations)
 
-        return JsonResponse({'daily_facts': explanations[:3]}, status=200)
+        return JsonResponse({
+            'genre_id': selected_genre,
+            'daily_facts': explanations[:3]
+        }, status=200)
 
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
