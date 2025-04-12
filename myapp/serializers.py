@@ -18,13 +18,26 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
+        # genre_name → genre_id(str) 변환 함수
+        def get_genre_id_by_name(name):
+            try:
+                genre = Genre.objects.get(genre_name=name)
+                return str(genre.genre_id)  # DB에는 문자열로 저장됨
+            except Genre.DoesNotExist:
+                return None
+
+        # 변환 적용
+        interest_1 = get_genre_id_by_name(validated_data.get('interest_1'))
+        interest_2 = get_genre_id_by_name(validated_data.get('interest_2'))
+        interest_3 = get_genre_id_by_name(validated_data.get('interest_3'))
+
         user = CustomUser.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
-            interest_1=validated_data.get('interest_1'),
-            interest_2=validated_data.get('interest_2'),
-            interest_3=validated_data.get('interest_3'),
+            interest_1=interest_1,
+            interest_2=interest_2,
+            interest_3=interest_3,
         )
         return user
 
