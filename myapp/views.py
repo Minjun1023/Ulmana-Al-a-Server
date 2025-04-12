@@ -132,7 +132,7 @@ def get_daily_facts(request):
         selected_genre = random.choice(valid_genres)
 
         # 해당 분야의 문제에서 explanation 추출
-        questions = Question.objects.filter(genre_id=selected_genre)
+        questions = Question.objects.filter(genre__genre_id=selected_genre)
         explanations = list(questions.values_list('explanation', flat=True))
         random.shuffle(explanations)
 
