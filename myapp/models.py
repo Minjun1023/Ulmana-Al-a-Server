@@ -49,7 +49,7 @@ class Genre(models.Model):
 # 문제/상식 모델
 class Question(models.Model):
     question_id = models.AutoField(primary_key=True)
-    genre = models.ForeignKey(Genre, on_delete=models.CASCADE, related_name="questions")
+    genre = models.ForeignKey(Genre, to_field='genre_id', on_delete=models.CASCADE, related_name="questions")
     question_text = models.TextField()
     option1 = models.CharField(max_length=255)
     option2 = models.CharField(max_length=255)
