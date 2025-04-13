@@ -3,11 +3,18 @@ from django.db import models
 
 # 사용자 관리자
 class CustomUserManager(BaseUserManager):
-    def create_user(self, username, email, password=None, **extra_fields):
+    def create_user(self, username, email, password=None, interest_1=None, interest_2=None, interest_3=None, **extra_fields):
         if not email:
             raise ValueError("The Email field must be set")
         email = self.normalize_email(email)
-        user = self.model(username=username, email=email, **extra_fields)
+        user = self.model(
+            username=username,
+            email=email,
+            interest_1=interest_1,
+            interest_2=interest_2,
+            interest_3=interest_3,
+            **extra_fields
+        )
         user.set_password(password)
         user.save(using=self._db)
         return user
