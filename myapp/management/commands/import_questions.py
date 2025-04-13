@@ -28,7 +28,7 @@ class Command(BaseCommand):
                 # 새 질문 삽입
                 Question.objects.create(
                     genre=genre,
-                    question_text=row['question'],
+                    question_text=row['question_text'],
                     option1=row['option1'],
                     option2=row['option2'],
                     option3=row['option3'],
