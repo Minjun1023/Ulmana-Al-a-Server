@@ -33,7 +33,8 @@ SECRET_KEY = 'django-insecure-coij*nb0fz564e3v=wjv373et^0#z6rl4g=8ne@^8f806%-sc=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['almanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com','3.36.128.149','localhost']
+ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS = ['almanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com','3.36.128.149','localhost']
 
 
 # Application definition
