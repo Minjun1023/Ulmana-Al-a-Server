@@ -22,7 +22,6 @@ from .serializers import (
 
 import random
 
-# 커스텀 유저 모델 가져오기
 User = get_user_model()
 
 # ✅ 회원가입
@@ -85,10 +84,10 @@ class ResetPasswordView(generics.GenericAPIView):
 
         user.set_password(new_password)
         user.save()
-        return Response({"message": "비밀번호가 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
+        return Response({"message": "비밀번호가 성공적으로 변경되었습니다."}, status=200)
 
 
-# ✅ 사용자 프로필 (관심 주제 포함)
+# ✅ 사용자 프로필
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -98,13 +97,13 @@ class UserProfileView(APIView):
         return Response(serializer.data)
 
 
-# ✅ (선택) JWT 토큰 기반 해설 제공
+# ✅ JWT 기반 해설 제공
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_random_explanations(request):
     user = request.user
     interests = [user.interest_1, user.interest_2, user.interest_3]
-    interests = [i for i in interests if i is not None and i.isdigit()]
+    interests = [i for i in interests if i and i.isdigit()]
     genre_ids = list(map(int, interests))
 
     questions = Question.objects.filter(genre_id__in=genre_ids)
@@ -112,7 +111,7 @@ def get_random_explanations(request):
     return Response({"explanations": explanations})
 
 
-# ✅ 이메일 기반 데일리 해설 제공 (안드로이드 용)
+# ✅ 데일리 해설 제공 (분야도 랜덤하게 3개)
 @csrf_exempt
 @require_GET
 def get_daily_facts(request):
@@ -121,31 +120,26 @@ def get_daily_facts(request):
     try:
         user = CustomUser.objects.get(email=email)
 
-        # 관심 분야 리스트 생성
         interests = [user.interest_1, user.interest_2, user.interest_3]
         valid_genres = [int(i) for i in interests if i and i.isdigit()]
 
         if not valid_genres:
             return JsonResponse({'daily_facts': []}, status=200)
 
-        # 랜덤으로 하나의 분야 선택
-        selected_genre = random.choice(valid_genres)
+        daily_facts = []
+        for _ in range(3):
+            selected_genre_id = random.choice(valid_genres)
+            genre = Genre.objects.get(genre_id=selected_genre_id)
+            questions = Question.objects.filter(genre=genre)
 
-        # 🔥 장르 이름도 같이 가져오기
-        genre = Genre.objects.get(genre_id=selected_genre)
-        genre_name = genre.genre_name
+            if questions.exists():
+                question = random.choice(questions)
+                daily_facts.append({
+                    'genre_name': genre.genre_name,
+                    'explanation': question.explanation
+                })
 
-        # 해당 분야의 문제에서 explanation 추출
-        questions = Question.objects.filter(genre__genre_id=selected_genre)
-        explanations = list(questions.values_list('explanation', flat=True))
-        random.shuffle(explanations)
-
-        # ✅ 응답 데이터에 genre_name 포함
-        return JsonResponse({
-            'genre_id': selected_genre,
-            'genre_name': genre_name,
-            'daily_facts': explanations[:3]
-        }, status=200)
+        return JsonResponse({'daily_facts': daily_facts}, status=200)
 
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
