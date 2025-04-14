@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 
-from .models import CustomUser, Question
+from .models import CustomUser, Question, Genre
 from .serializers import (
     UserSerializer,
     LoginSerializer,
@@ -131,13 +131,19 @@ def get_daily_facts(request):
         # 랜덤으로 하나의 분야 선택
         selected_genre = random.choice(valid_genres)
 
+        # 🔥 장르 이름도 같이 가져오기
+        genre = Genre.objects.get(genre_id=selected_genre)
+        genre_name = genre.genre_name
+
         # 해당 분야의 문제에서 explanation 추출
         questions = Question.objects.filter(genre__genre_id=selected_genre)
         explanations = list(questions.values_list('explanation', flat=True))
         random.shuffle(explanations)
 
+        # ✅ 응답 데이터에 genre_name 포함
         return JsonResponse({
             'genre_id': selected_genre,
+            'genre_name': genre_name,
             'daily_facts': explanations[:3]
         }, status=200)
 
