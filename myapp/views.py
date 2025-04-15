@@ -111,7 +111,7 @@ def get_random_explanations(request):
     return Response({"explanations": explanations})
 
 
-# ✅ 데일리 해설 제공 (분야도 랜덤하게 3개)
+# ✅ 데일리 해설 제공 (분야도 랜덤하게 3개, 중복 X)
 @csrf_exempt
 @require_GET
 def get_daily_facts(request):
@@ -126,18 +126,22 @@ def get_daily_facts(request):
         if not valid_genres:
             return JsonResponse({'daily_facts': []}, status=200)
 
-        daily_facts = []
-        for _ in range(3):
-            selected_genre_id = random.choice(valid_genres)
-            genre = Genre.objects.get(genre_id=selected_genre_id)
-            questions = Question.objects.filter(genre=genre)
+        # 장르 중복 없이 최대 3개 뽑기
+        selected_genres = random.sample(valid_genres, min(3, len(valid_genres)))
 
-            if questions.exists():
-                question = random.choice(questions)
-                daily_facts.append({
-                    'genre_name': genre.genre_name,
-                    'explanation': question.explanation
-                })
+        daily_facts = []
+        for genre_id in selected_genres:
+            try:
+                genre = Genre.objects.get(genre_id=genre_id)
+                questions = Question.objects.filter(genre=genre)
+                if questions.exists():
+                    question = random.choice(questions)
+                    daily_facts.append({
+                        'genre_name': genre.genre_name,
+                        'explanation': question.explanation
+                    })
+            except Genre.DoesNotExist:
+                continue
 
         return JsonResponse({'daily_facts': daily_facts}, status=200)
 
