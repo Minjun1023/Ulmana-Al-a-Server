@@ -143,7 +143,7 @@ def get_daily_facts(request):
             except Genre.DoesNotExist:
                 continue
 
-        return JsonResponse({'daily_facts': daily_facts}, status=200)
+        return JsonResponse({'daily_facts': daily_facts}, safe=False, status=200)
 
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
