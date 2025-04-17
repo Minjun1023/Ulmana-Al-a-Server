@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import CustomUser, Genre
+from .models import CustomUser, Genre, Question, QuizResult
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import User
@@ -87,3 +87,32 @@ class ResetPasswordSerializer(serializers.Serializer):
         user = User.objects.get(email=email)
         user.set_password(new_password)
         user.save()
+
+class QuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Question
+        fields = ['question_id', 'question_text', 'option1', 'option2', 'option3', 'option4']
+
+class QuizResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuizResult
+        fields = ['user', 'question', 'user_answer', 'correct_answer', 'is_correct', 'score', 'submission_time']
+
+    def create(self, validated_data):
+        user = validated_data['user']
+        question = validated_data['question']
+        user_answer = validated_data['user_answer']
+        correct_answer = question.answer
+        is_correct = user_answer == correct_answer
+        score = 1 if is_correct else 0
+        
+        # 퀴즈 결과 생성
+        quiz_result = QuizResult.objects.create(
+            user=user,
+            question=question,
+            user_answer=user_answer,
+            correct_answer=correct_answer,
+            is_correct=is_correct,
+            score=score
+        )
+        return quiz_result
