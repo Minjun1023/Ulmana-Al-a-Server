@@ -82,6 +82,7 @@ class QuizResult(models.Model):
     user_answer = models.TextField()
     correct_answer = models.TextField()
     is_correct = models.BooleanField()
+    score = models.IntegerField(default=0) 
     submission_time = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
