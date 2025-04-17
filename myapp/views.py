@@ -12,12 +12,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 
-from .models import CustomUser, Question, Genre
+from .models import CustomUser, Question, Genre, QuizResult
 from .serializers import (
     UserSerializer,
     LoginSerializer,
     FindIdSerializer,
-    ResetPasswordSerializer
+    ResetPasswordSerializer,
+    QuestionSerializer,
+    QuizResultSerializer
 )
 
 import random
@@ -111,7 +113,6 @@ def get_random_explanations(request):
     return Response({"explanations": explanations})
 
 
-# ✅ 데일리 해설 제공 (분야도 랜덤하게 3개, 중복 X)
 @csrf_exempt
 @require_GET
 def get_daily_facts(request):
@@ -126,7 +127,6 @@ def get_daily_facts(request):
         if not valid_genres:
             return JsonResponse({'daily_facts': []}, status=200)
 
-        # 장르 중복 없이 최대 3개 뽑기
         selected_genres = random.sample(valid_genres, min(3, len(valid_genres)))
 
         daily_facts = []
@@ -143,7 +143,96 @@ def get_daily_facts(request):
             except Genre.DoesNotExist:
                 continue
 
+        # ✅ 매 요청마다 새로운 상식 제공
         return JsonResponse({'daily_facts': daily_facts}, safe=False, status=200)
 
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
+
+        
+class Genre25QuestionView(APIView):
+    def get(self, request):
+        genre_id = request.query_params.get('genre_id')
+        if not genre_id:
+            return Response({"error": "genre_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        questions = Question.objects.filter(genre__genre_id=genre_id).order_by('?')[:25]
+        serializer = QuestionSerializer(questions, many=True)
+        return Response(serializer.data)
+
+
+class Genre50QuestionView(APIView):
+    def get(self, request):
+        genre_id = request.query_params.get('genre_id')
+        if not genre_id:
+            return Response({"error": "genre_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        questions = Question.objects.filter(genre__genre_id=genre_id).order_by('?')[:50]
+        serializer = QuestionSerializer(questions, many=True)
+        return Response(serializer.data)
+
+
+class SpeedQuizView(APIView):
+    def get(self, request):
+        genre_id = request.query_params.get('genre_id')
+        if not genre_id:
+            return Response({"error": "genre_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        questions = Question.objects.filter(genre__genre_id=genre_id).order_by('?')[:100]
+        serializer = QuestionSerializer(questions, many=True)
+
+        return Response({
+            "time_options": [60, 180],  # 1분, 3분
+            "questions": serializer.data
+        })
+class QuizSubmitView(generics.GenericAPIView):
+    serializer_class = QuizResultSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        quiz_results = request.data.get('quiz_results', [])
+
+        results = []
+        total_score = 0
+
+        for result in quiz_results:
+            try:
+                question_id = result.get('question_id')
+                user_answer = result.get('user_answer')
+
+                question = Question.objects.get(question_id=question_id)
+                correct_answer = question.answer
+                is_correct = user_answer == correct_answer
+                score = 1 if is_correct else 0
+                total_score += score
+
+                quiz_result = QuizResult.objects.create(
+                    user=user,
+                    question=question,
+                    user_answer=user_answer,
+                    correct_answer=correct_answer,
+                    is_correct=is_correct,
+                    score=score
+                )
+
+                results.append({
+                    "question_id": question_id,
+                    "user_answer": user_answer,
+                    "correct_answer": correct_answer,
+                    "is_correct": is_correct,
+                    "score": score
+                })
+
+            except Question.DoesNotExist:
+                continue
+
+        # 전체 점수 누적
+        user.score += total_score
+        user.save()
+
+        return Response({
+            "message": "퀴즈 결과가 성공적으로 저장되었습니다.",
+            "total_score": total_score,
+            "results": results
+        }, status=status.HTTP_201_CREATED)
