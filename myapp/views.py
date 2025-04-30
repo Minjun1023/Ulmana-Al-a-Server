@@ -38,7 +38,6 @@ class RegisterView(generics.CreateAPIView):
             'data': response.data
         })
 
-
 # ✅ 로그인 (JWT 발급)
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
@@ -53,7 +52,6 @@ class LoginView(generics.GenericAPIView):
             'access': str(refresh.access_token),
         })
 
-
 # ✅ 아이디(이메일) 찾기
 class FindIdView(generics.GenericAPIView):
     serializer_class = FindIdSerializer
@@ -65,7 +63,6 @@ class FindIdView(generics.GenericAPIView):
         return Response({
             'message': f'당신의 이메일은 {user.email}'
         })
-
 
 # ✅ 비밀번호 재설정
 class ResetPasswordView(generics.GenericAPIView):
@@ -88,7 +85,6 @@ class ResetPasswordView(generics.GenericAPIView):
         user.save()
         return Response({"message": "비밀번호가 성공적으로 변경되었습니다."}, status=200)
 
-
 # ✅ 사용자 프로필
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -98,6 +94,21 @@ class UserProfileView(APIView):
         serializer = UserSerializer(user)
         return Response(serializer.data)
 
+# ✅ 닉네임 변경
+class UpdateNicknameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        new_nickname = request.data.get("username")
+
+        if not new_nickname:
+            return Response({"error": "닉네임을 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        user.username = new_nickname
+        user.save()
+
+        return Response({"message": "닉네임이 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
 
 # ✅ JWT 기반 해설 제공
 @api_view(['GET'])
@@ -111,7 +122,6 @@ def get_random_explanations(request):
     questions = Question.objects.filter(genre_id__in=genre_ids)
     explanations = [q.explanation for q in random.sample(list(questions), min(3, len(questions)))]
     return Response({"explanations": explanations})
-
 
 @csrf_exempt
 @require_GET
@@ -143,13 +153,11 @@ def get_daily_facts(request):
             except Genre.DoesNotExist:
                 continue
 
-        # ✅ 매 요청마다 새로운 상식 제공
         return JsonResponse({'daily_facts': daily_facts}, safe=False, status=200)
 
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
 
-        
 class Genre25QuestionView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -159,7 +167,6 @@ class Genre25QuestionView(APIView):
         questions = Question.objects.filter(genre__genre_id=genre_id).order_by('?')[:25]
         serializer = QuestionSerializer(questions, many=True)
         return Response(serializer.data)
-
 
 class Genre50QuestionView(APIView):
     def get(self, request):
@@ -171,7 +178,6 @@ class Genre50QuestionView(APIView):
         serializer = QuestionSerializer(questions, many=True)
         return Response(serializer.data)
 
-
 class SpeedQuizView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -182,9 +188,10 @@ class SpeedQuizView(APIView):
         serializer = QuestionSerializer(questions, many=True)
 
         return Response({
-            "time_options": [60, 180],  # 1분, 3분
+            "time_options": [60, 180],
             "questions": serializer.data
         })
+
 class QuizSubmitView(generics.GenericAPIView):
     serializer_class = QuizResultSerializer
     permission_classes = [IsAuthenticated]
@@ -196,7 +203,6 @@ class QuizSubmitView(generics.GenericAPIView):
         correct_count = 0
         wrong_count = 0
 
-        # 퀴즈 문제 개수에 따른 점수 계산
         total_questions = len(quiz_results)
         if total_questions == 100:
             points_per_question = 1
@@ -205,7 +211,7 @@ class QuizSubmitView(generics.GenericAPIView):
         elif total_questions == 25:
             points_per_question = 4
         else:
-            points_per_question = 0  # 유효하지 않은 문제 수일 경우 (예외 처리)
+            points_per_question = 0
 
         for result in quiz_results:
             try:
@@ -222,7 +228,6 @@ class QuizSubmitView(generics.GenericAPIView):
                 else:
                     wrong_count += 1
 
-                # 퀴즈 결과 저장
                 QuizResult.objects.create(
                     user=user,
                     question=question,
@@ -237,7 +242,6 @@ class QuizSubmitView(generics.GenericAPIView):
             except Question.DoesNotExist:
                 continue
 
-        # 최고 점수 갱신
         if total_score > user.score:
             user.score = total_score
             user.save()
@@ -253,7 +257,7 @@ class QuizSubmitView(generics.GenericAPIView):
 @permission_classes([IsAuthenticated])
 def get_quiz_results(request):
     user = request.user
-    quiz_results = QuizResult.objects.filter(user=user).order_by('-submission_time')[:10]  # 최근 10개만
+    quiz_results = QuizResult.objects.filter(user=user).order_by('-submission_time')[:10]
 
     serializer = QuizResultSerializer(quiz_results, many=True)
     return Response(serializer.data)
@@ -263,7 +267,7 @@ def get_quiz_results(request):
 def get_wrong_answers(request):
     user = request.user
     wrong_answers = QuizResult.objects.filter(user=user, is_correct=False).order_by('-submission_time')
-    
+
     serializer = QuizResultSerializer(wrong_answers, many=True)
     return Response(serializer.data)
 
@@ -272,7 +276,7 @@ def get_wrong_answers(request):
 def genre_score_summary(request):
     user = request.user
     results = QuizResult.objects.filter(user=user)
-    
+
     summary = {}
     for result in results:
         genre_name = result.question.genre.genre_name
@@ -281,8 +285,7 @@ def genre_score_summary(request):
         summary[genre_name]['total'] += 1
         if result.is_correct:
             summary[genre_name]['correct'] += 1
-    
-    # 정확도 포함
+
     for genre in summary:
         correct = summary[genre]['correct']
         total = summary[genre]['total']
@@ -296,7 +299,6 @@ class RankingView(APIView):
     def get(self, request):
         user = request.user
 
-        # 1. 상위 10위 랭커 조회 (score 기준 내림차순)
         top_users = CustomUser.objects.order_by('-score')[:10]
         top_ranking = []
         for index, ranked_user in enumerate(top_users, start=1):
@@ -306,7 +308,6 @@ class RankingView(APIView):
                 "score": ranked_user.score
             })
 
-        # 2. 전체 랭킹에서 현재 사용자 순위 계산
         user_rank = CustomUser.objects.filter(score__gt=user.score).count() + 1
 
         return Response({
