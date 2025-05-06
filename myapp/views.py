@@ -1,6 +1,8 @@
+# views.py
+
 from rest_framework import status, generics
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -38,19 +40,33 @@ class RegisterView(generics.CreateAPIView):
             'data': response.data
         })
 
-# ✅ 로그인 (JWT 발급)
+# ✅ 로그인 (수정된 LoginView)
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data
+
         refresh = RefreshToken.for_user(user)
+
+        interests = []
+        if user.interest_1:
+            interests.append(user.interest_1)
+        if user.interest_2:
+            interests.append(user.interest_2)
+        if user.interest_3:
+            interests.append(user.interest_3)
+
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-        })
+            'email': user.email,
+            'username': user.username,
+            'interests': interests,
+        }, status=status.HTTP_200_OK)
 
 # ✅ 아이디(이메일) 찾기
 class FindIdView(generics.GenericAPIView):
@@ -158,6 +174,7 @@ def get_daily_facts(request):
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
 
+# ✅ 장르별 문제 뽑기 (25문제, 50문제, 100문제(스피드))
 class Genre25QuestionView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -192,6 +209,7 @@ class SpeedQuizView(APIView):
             "questions": serializer.data
         })
 
+# ✅ 퀴즈 결과 저장
 class QuizSubmitView(generics.GenericAPIView):
     serializer_class = QuizResultSerializer
     permission_classes = [IsAuthenticated]
@@ -253,6 +271,7 @@ class QuizSubmitView(generics.GenericAPIView):
             "totalScore": total_score
         }, status=status.HTTP_201_CREATED)
 
+# ✅ 최근 퀴즈 결과 조회
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_quiz_results(request):
@@ -262,6 +281,7 @@ def get_quiz_results(request):
     serializer = QuizResultSerializer(quiz_results, many=True)
     return Response(serializer.data)
 
+# ✅ 오답 조회
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_wrong_answers(request):
@@ -271,6 +291,7 @@ def get_wrong_answers(request):
     serializer = QuizResultSerializer(wrong_answers, many=True)
     return Response(serializer.data)
 
+# ✅ 장르별 정답률 요약
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def genre_score_summary(request):
@@ -293,6 +314,7 @@ def genre_score_summary(request):
 
     return Response(summary)
 
+# ✅ 랭킹 조회
 class RankingView(APIView):
     permission_classes = [IsAuthenticated]
 
