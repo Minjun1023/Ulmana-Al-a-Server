@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 
+
+from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
@@ -12,14 +14,16 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 
-from .models import CustomUser, Question, Genre, QuizResult
+from .models import CustomUser, Question, Genre, QuizResult, QuizSession
 from .serializers import (
     UserSerializer,
     LoginSerializer,
     FindIdSerializer,
     ResetPasswordSerializer,
     QuestionSerializer,
-    QuizResultSerializer
+    QuizResultSerializer,
+    QuizSessionSerializer
+
 )
 
 import random
@@ -112,7 +116,6 @@ def get_random_explanations(request):
     explanations = [q.explanation for q in random.sample(list(questions), min(3, len(questions)))]
     return Response({"explanations": explanations})
 
-
 @csrf_exempt
 @require_GET
 def get_daily_facts(request):
@@ -149,7 +152,8 @@ def get_daily_facts(request):
     except CustomUser.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
 
-        
+
+# 25문제
 class Genre25QuestionView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -161,6 +165,7 @@ class Genre25QuestionView(APIView):
         return Response(serializer.data)
 
 
+# 50문제
 class Genre50QuestionView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -172,6 +177,7 @@ class Genre50QuestionView(APIView):
         return Response(serializer.data)
 
 
+# 스피드퀴즈
 class SpeedQuizView(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id')
@@ -185,49 +191,82 @@ class SpeedQuizView(APIView):
             "time_options": [60, 180],  # 1분, 3분
             "questions": serializer.data
         })
+    
+# 퀴즈 제출(퀴즈 결과까지 보여줌)
 class QuizSubmitView(generics.GenericAPIView):
-    serializer_class = QuizResultSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         user = request.user
-        quiz_results = request.data.get('quiz_results', [])
+        quiz_results = request.data.get('quiz_results')
+        genre_id = request.data.get('genre_id')
+        quiz_type = request.data.get('quiz_type')
+        
+
+        if not all([quiz_results, genre_id, quiz_type]):
+            return Response({
+                "message": "필수 정보가 누락되었습니다. (quiz_results, genre_id, quiz_type)"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            genre = Genre.objects.get(pk=genre_id)
+        except Genre.DoesNotExist:
+            return Response({
+                "message": f"장르 ID {genre_id}에 해당하는 장르가 존재하지 않습니다."
+            }, status=status.HTTP_404_NOT_FOUND)
+
         total_score = 0
         correct_count = 0
         wrong_count = 0
 
-        # 퀴즈 문제 개수에 따른 점수 계산
-        total_questions = len(quiz_results)
-        if total_questions == 100:
-            points_per_question = 1
-        elif total_questions == 50:
-            points_per_question = 2
-        elif total_questions == 25:
-            points_per_question = 4
-        else:
-            points_per_question = 0  # 유효하지 않은 문제 수일 경우 (예외 처리)
+        # QuizSession 객체 생성 (start_time은 자동 설정됨)
+        quiz_session = QuizSession.objects.create(
+            user=user,
+            genre=genre,
+            quiz_type=quiz_type,
+            total_questions=len(quiz_results),
+            correct_count=0,
+            wrong_count=0,
+            total_score=0
+        )
 
+        # 퀴즈 결과 처리
         for result in quiz_results:
-            try:
-                question_id = result.get('question_id')
-                user_answer = result.get('user_answer')
+            question_id = result.get('question_id')
+            user_answer_raw = result.get('user_answer')
 
+            if user_answer_raw is None:
+                return Response({
+                    "message": f"문제 ID {question_id}의 사용자 답안이 없습니다."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
                 question = Question.objects.get(question_id=question_id)
-                correct_answer = question.answer
+
+                # 숫자형 인덱스를 보기 텍스트로 변환
+                options = {
+                    '1': question.option1,
+                    '2': question.option2,
+                    '3': question.option3,
+                    '4': question.option4,
+                }
+                user_answer = options.get(str(user_answer_raw), "").strip().lower()
+                correct_answer = str(question.answer).strip().lower()
+
                 is_correct = user_answer == correct_answer
-                score = points_per_question if is_correct else 0
+                score = 1 if is_correct else 0
 
                 if is_correct:
                     correct_count += 1
                 else:
                     wrong_count += 1
 
-                # 퀴즈 결과 저장
+                # 결과 저장
                 QuizResult.objects.create(
-                    user=user,
+                    session=quiz_session,
                     question=question,
                     user_answer=user_answer,
-                    correct_answer=correct_answer,
+                    correct_answer=question.answer,
                     is_correct=is_correct,
                     score=score
                 )
@@ -235,85 +274,237 @@ class QuizSubmitView(generics.GenericAPIView):
                 total_score += score
 
             except Question.DoesNotExist:
-                continue
+                continue  # 존재하지 않는 질문은 건너뜀
 
-        # 최고 점수 갱신
-        if total_score > user.score:
-            user.score = total_score
-            user.save()
+        # 세션 정보 업데이트
+        quiz_session.correct_count = correct_count
+        quiz_session.wrong_count = wrong_count
+        quiz_session.total_score = total_score
+        quiz_session.end_time = timezone.now()  # 퀴즈 종료 시간 설정
+        quiz_session.save()
+
+        # 사용자 누적 점수 업데이트
+        if user.score is None:
+            user.score = 0
+        user.score += total_score
+        user.save()
 
         return Response({
             "message": "퀴즈 결과가 성공적으로 저장되었습니다.",
-            "correctCount": correct_count,
-            "wrongCount": wrong_count,
-            "totalScore": total_score
+            "summary": {
+                "총 문항 수": len(quiz_results),
+                "정답 수": correct_count,
+                "오답 수": wrong_count,
+                "획득 점수": total_score,
+                "누적 점수": user.score,
+            },
         }, status=status.HTTP_201_CREATED)
 
+
+# 최근 퀴즈 결과
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_quiz_results(request):
+def get_quiz_sessions(request):
     user = request.user
-    quiz_results = QuizResult.objects.filter(user=user).order_by('-submission_time')[:10]  # 최근 10개만
 
-    serializer = QuizResultSerializer(quiz_results, many=True)
+    quiz_sessions = (
+        QuizSession.objects
+        .filter(
+            user=user,
+            genre__isnull=False,
+            quiz_type__isnull=False
+        )
+        # ── 오답노트에서 wrong_count=0인 세션만 제거
+        .exclude(quiz_type='wrong_note', wrong_count=0)
+        .prefetch_related(
+            'quizresult_set__question',
+            'quizresult_set__question__genre'
+        )
+        .select_related('genre')
+        .order_by('-created_at')[:20]
+    )
+
+    serializer = QuizSessionSerializer(quiz_sessions, many=True)
     return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_wrong_answers(request):
-    user = request.user
-    wrong_answers = QuizResult.objects.filter(user=user, is_correct=False).order_by('-submission_time')
-    
-    serializer = QuizResultSerializer(wrong_answers, many=True)
-    return Response(serializer.data)
+# 문제 및 해설 상세 조회 뷰
+class QuestionDetailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def genre_score_summary(request):
-    user = request.user
-    results = QuizResult.objects.filter(user=user)
-    
-    summary = {}
-    for result in results:
-        genre_name = result.question.genre.genre_name
-        if genre_name not in summary:
-            summary[genre_name] = {'correct': 0, 'total': 0}
-        summary[genre_name]['total'] += 1
-        if result.is_correct:
-            summary[genre_name]['correct'] += 1
-    
-    # 정확도 포함
-    for genre in summary:
-        correct = summary[genre]['correct']
-        total = summary[genre]['total']
-        summary[genre]['accuracy'] = round(correct / total * 100, 2) if total else 0.0
+    def get(self, request, question_id):
+        try:
+            # 문제 정보 조회
+            question = Question.objects.get(question_id=question_id)
 
-    return Response(summary)
+            # 현재 사용자에 대한 QuizResult 조회 (session을 통해 user 연결)
+            quiz_result = QuizResult.objects.filter(
+                question=question,
+                session__user=request.user  # session 테이블을 통해 user 필터링
+            ).first()
 
+            # user_answer가 존재할 경우 가져오고, 없으면 None
+            user_answer = quiz_result.user_answer if quiz_result else None
+
+            # 해당 퀴즈 결과의 세션 정보(quiz_type 포함) 조회
+            quiz_session = quiz_result.session if quiz_result else None
+            quiz_type = quiz_session.quiz_type if quiz_session else None
+
+            # 응답 데이터 구성
+            response_data = {
+                "question_id": question.question_id,
+                "question_text": question.question_text,
+                "option1": question.option1,
+                "option2": question.option2,
+                "option3": question.option3,
+                "option4": question.option4,
+                "user_answer": user_answer,  # 사용자 선택 답
+                "answer": question.answer,  # 정답
+                "explanation": question.explanation,  # 해설
+                "quiz_type": quiz_type,  # 퀴즈 유형
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Question.DoesNotExist:
+            return Response({"error": "문제를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+# 오답노트 제출
+class WrongNoteSubmitView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        quiz_results = request.data.get("quiz_results")
+        quiz_type = request.data.get("quiz_type", "wrong_note")
+
+        if not quiz_results:
+            return Response({"message": "quiz_results가 필요합니다."}, status=400)
+
+        # 1) 이전 오답노트 세션 모두 삭제 (기타/NULL로 남아 있는 예전 기록 제거)
+        QuizSession.objects.filter(user=user, quiz_type=quiz_type).delete()
+
+        total_score = 0.0
+        correct_count = 0
+        wrong_count = 0
+        first_genre = None
+
+        # 2) 채점만 먼저 돌려서 통계 집계 & 첫 문제의 장르 저장
+        for item in quiz_results:
+            qid = item.get("question_id")
+            idx = item.get("user_answer")
+            try:
+                q = Question.objects.get(question_id=qid)
+                if first_genre is None:
+                    first_genre = q.genre
+                # 보기 텍스트 매핑
+                opts = {"1": q.option1, "2": q.option2, "3": q.option3, "4": q.option4}
+                ua = opts.get(str(idx), "").strip().lower()
+                ca = str(q.answer).strip().lower()
+                is_correct = (ua == ca)
+                score = 0.5 if is_correct else 0.0
+
+                total_score += score
+                correct_count += int(is_correct)
+                wrong_count += int(not is_correct)
+            except Question.DoesNotExist:
+                continue
+
+        # 3) 새 세션 생성 (장르와 quiz_type 모두 채워짐)
+        session = QuizSession.objects.create(
+            user=user,
+            genre=first_genre,
+            quiz_type=quiz_type,
+            total_questions=len(quiz_results),
+            correct_count=correct_count,
+            wrong_count=wrong_count,
+            total_score=total_score,
+            end_time=timezone.now()
+        )
+
+        # 4) 개별 문제 기록 저장
+        for item in quiz_results:
+            qid = item.get("question_id")
+            idx = item.get("user_answer")
+            try:
+                q = Question.objects.get(question_id=qid)
+                opts = {"1": q.option1, "2": q.option2, "3": q.option3, "4": q.option4}
+                ua = opts.get(str(idx), "").strip().lower()
+                ca = str(q.answer)
+                is_correct = (ua == ca.strip().lower())
+                sc = 0.5 if is_correct else 0.0
+
+                QuizResult.objects.create(
+                    session=session,
+                    question=q,
+                    user_answer=ua,
+                    correct_answer=q.answer,
+                    is_correct=is_correct,
+                    score=sc
+                )
+            except Question.DoesNotExist:
+                continue
+
+        # 5) 유저 누적 점수 갱신 (0.5점 단위)
+        if user.score is None:
+            user.score = 0.0
+        user.score += total_score
+        user.save()
+
+        return Response({
+            "message": "오답노트 채점 결과 저장 완료",
+            "summary": {
+                "정답 수": correct_count,
+                "오답 수": wrong_count,
+                "총 점수": total_score,
+                "누적 점수": user.score
+            }
+        }, status=status.HTTP_201_CREATED)
+    
+# 랭킹
 class RankingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        mode = request.query_params.get('mode', 'speed')
         user = request.user
 
-        # 1. 상위 10위 랭커 조회 (score 기준 내림차순)
-        top_users = CustomUser.objects.order_by('-score')[:10]
-        top_ranking = []
-        for index, ranked_user in enumerate(top_users, start=1):
-            top_ranking.append({
-                "rank": index,
-                "username": ranked_user.username,
-                "score": ranked_user.score
+        if mode == 'solve':
+            users = CustomUser.objects.order_by('-solve_score')[:100]
+            score_field = 'solve_score'
+        elif mode == 'total':
+            users = CustomUser.objects.order_by('-total_score')[:100]
+            score_field = 'total_score'
+        else:  # default: speed
+            users = CustomUser.objects.order_by('-speed_score')[:100]
+            score_field = 'speed_score'
+
+        ranking_list = []
+        my_rank = None
+
+        for idx, u in enumerate(users, start=1):
+            if u.id == user.id:
+                my_rank = idx
+
+            ranking_list.append({
+                'rank': idx,
+                'nickname': u.username,
+                'profile_image': u.profileImage.url if u.profileImage else None,
+                'score': getattr(u, score_field),
             })
 
-        # 2. 전체 랭킹에서 현재 사용자 순위 계산
-        user_rank = CustomUser.objects.filter(score__gt=user.score).count() + 1
+        if my_rank is None:
+            my_rank = CustomUser.objects.filter(**{
+                f"{score_field}__gt": getattr(user, score_field)
+            }).count() + 1
+
+        my_info = {
+            'rank': my_rank,
+            'nickname': user.username,
+            'profile_image': user.profileImage.url if user.profileImage else None,
+            'score': getattr(user, score_field),
+        }
 
         return Response({
-            "top_10": top_ranking,
-            "my_ranking": {
-                "rank": user_rank,
-                "username": user.username,
-                "score": user.score
-            }
+            'ranking': ranking_list,
+            'my_info': my_info
         })

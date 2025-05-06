@@ -1,5 +1,8 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager, Group, Permission
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+
 # 사용자 관리자
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email, password=None, interest_1=None, interest_2=None, interest_3=None, **extra_fields):
@@ -27,7 +30,7 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=20, unique=True)
-    score = models.IntegerField(default=0) # 최고 점수(max score)
+    score = models.FloatField(default=0.0) 
 
     interest_1 = models.CharField(max_length=100, blank=True, null=True)
     interest_2 = models.CharField(max_length=100, blank=True, null=True)
@@ -55,13 +58,7 @@ class Genre(models.Model):
 # 문제/상식 모델
 class Question(models.Model):
     question_id = models.AutoField(primary_key=True)
-    genre = models.ForeignKey(
-    Genre,
-    to_field='genre_id',
-    on_delete=models.CASCADE,
-    related_name="questions",
-    null=True,  # 또는 default=1 등으로 설정
-)
+    genre = models.ForeignKey(Genre,to_field='genre_id',on_delete=models.CASCADE,related_name="questions",null=True,)  # 또는 default=1 등으로 설정
     question_text = models.TextField()
     option1 = models.CharField(max_length=255)
     option2 = models.CharField(max_length=255)
@@ -73,28 +70,30 @@ class Question(models.Model):
     def __str__(self):
         return f"[{self.genre.genre_name}] {self.question_text[:30]}..."
 
-# 퀴즈 한 세트에 대한 전체 결과
+# 퀴즈 세션 모델
 class QuizSession(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='quiz_sessions')
     genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True)
+    quiz_type = models.CharField(max_length=20)  # "25문제", "50문제", "스피드퀴즈" 등 퀴즈 유형 추가
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     total_questions = models.IntegerField()
     correct_count = models.IntegerField()
     wrong_count = models.IntegerField()
     total_score = models.IntegerField()
+    start_time = models.DateTimeField(auto_now_add=True)  # auto_now_add로 자동 설정됨
+    end_time = models.DateTimeField(null=True, blank=True)  # end_time 필드 추가
 
     def __str__(self):
-        return f"{self.user.username} - {self.genre.genre_name} - {self.created_at.date()}"
-
-# 퀴즈 문제마다 결과 모델
+        return f"{self.user.username} - {self.genre.genre_name} - {self.quiz_type} - {self.created_at.date()}"
+# 퀴즈 결과 모델
 class QuizResult(models.Model):
     session = models.ForeignKey(QuizSession, on_delete=models.CASCADE, null=True)
-    question = models.ForeignKey('myapp.Question', on_delete=models.CASCADE)  # 문자열로 모델 참조
+    question = models.ForeignKey('myapp.Question', on_delete=models.CASCADE)
     user_answer = models.CharField(max_length=255)
     correct_answer = models.CharField(max_length=255)
     is_correct = models.BooleanField(db_index=True)
     score = models.IntegerField()
+    submission_time = models.DateTimeField(auto_now_add=True)  # 답안 제출 시간
 
     def __str__(self):
-        return f"{self.session.user.username} - Q{self.question_id} - {'O' if self.is_correct else 'X'}"
-
+        return f"{self.session.user.username} - Q{self.question.question_id} - {'O' if self.is_correct else 'X'}"

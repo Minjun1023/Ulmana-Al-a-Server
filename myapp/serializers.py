@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import CustomUser, Genre, Question, QuizResult
+from .models import CustomUser, Genre, Question, QuizResult, QuizSession
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import User
@@ -96,12 +96,20 @@ class QuestionSerializer(serializers.ModelSerializer):
 class QuizResultSerializer(serializers.ModelSerializer):
     question_text = serializers.CharField(source='question.question_text', read_only=True)
     explanation = serializers.CharField(source='question.explanation', read_only=True)
+    genre_name = serializers.CharField(source='question.genre.genre_name', read_only=True)
+    user_answer = serializers.CharField(read_only=True)
     class Meta:
         model = QuizResult
         fields = [
             'question', 'question_text', 'user_answer', 'correct_answer',
-            'is_correct', 'score', 'submission_time', 'explanation'
+            'is_correct', 'score', 'submission_time', 'explanation', 'genre_name'
         ]
+
+    def get_correct_count(self, obj):
+        # 해당 퀴즈 세션에서 맞춘 문제 수를 반환
+        correct_answers = QuizResult.objects.filter(session=obj.session, is_correct=True).count()
+        return correct_answers
+    
     def create(self, validated_data):
         user = validated_data['user']
         question = validated_data['question']
@@ -109,7 +117,7 @@ class QuizResultSerializer(serializers.ModelSerializer):
         correct_answer = question.answer
         is_correct = user_answer == correct_answer
         score = 1 if is_correct else 0
-        
+
         # 퀴즈 결과 생성
         quiz_result = QuizResult.objects.create(
             user=user,
@@ -119,5 +127,62 @@ class QuizResultSerializer(serializers.ModelSerializer):
             is_correct=is_correct,
             score=score
         )
+
+        # 누적 점수 반영
+        if user.score is None:
+            user.score = 0
+        user.score += score
+        user.save()
+
         return quiz_result
 
+class QuizSummarySerializer(serializers.Serializer):
+    score = serializers.IntegerField()
+    correct_count = serializers.IntegerField()
+    wrong_count = serializers.IntegerField()
+
+class QuizSessionSerializer(serializers.ModelSerializer):
+    date = serializers.DateTimeField(
+        source='created_at',
+        format='%Y-%m-%d %H:%M',
+        read_only=True
+    )
+    genre = serializers.CharField(
+        source='genre.genre_name',
+        read_only=True
+    )
+    quiz_type = serializers.CharField(read_only=True)
+    totalQuestions = serializers.IntegerField(
+        source='total_questions',
+        read_only=True
+    )
+    correctAnswers = serializers.IntegerField(
+        source='correct_count',
+        read_only=True
+    )
+    wrongAnswers = serializers.IntegerField(
+        source='wrong_count',
+        read_only=True
+    )
+    totalScore = serializers.FloatField(
+        source='total_score',
+        read_only=True
+    )
+    quizResults = QuizResultSerializer(
+        many=True,
+        source='quizresult_set'
+    )
+
+    class Meta:
+        model = QuizSession
+        fields = [
+            'id',
+            'date',
+            'genre',
+            'quiz_type',
+            'totalQuestions',
+            'correctAnswers',
+            'wrongAnswers',
+            'totalScore',
+            'quizResults',
+        ]
