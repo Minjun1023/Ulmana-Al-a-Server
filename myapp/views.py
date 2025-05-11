@@ -126,6 +126,37 @@ class UpdateNicknameView(APIView):
 
         return Response({"message": "닉네임이 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
 
+# ✅ 관심 분야 변경
+class UpdateInterestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+
+        # 요청에서 새로운 관심 분야 받아오기
+        interest_1 = request.data.get("interest_1")
+        interest_2 = request.data.get("interest_2")
+        interest_3 = request.data.get("interest_3")
+
+        # 최소한 하나라도 값이 있어야 변경 가능
+        if not any([interest_1, interest_2, interest_3]):
+            return Response(
+                {"error": "최소 하나 이상의 관심 분야를 선택해야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 저장 (None도 허용됨)
+        user.interest_1 = interest_1
+        user.interest_2 = interest_2
+        user.interest_3 = interest_3
+        user.save()
+
+        return Response(
+            {"message": "관심 분야가 성공적으로 변경되었습니다."},
+            status=status.HTTP_200_OK
+        )
+
+
 # ✅ JWT 기반 해설 제공
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
