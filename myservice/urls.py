@@ -14,7 +14,7 @@ urlpatterns = [
     path('reset-password/', views.ResetPasswordView.as_view(), name='resetpassword'),
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('profile/update-nickname/', UpdateNicknameView.as_view(), name='update-nickname'),  # ✅ 닉네임 변경 URL 추가
-
+    path("profile/update-interests/", UpdateInterestsView.as_view(), name="update-interests"), # ✅ 관심 분야 변경 URL 추가
     path('questions/random_explanations/', get_random_explanations, name='random_explanations'),
     path('daily-facts/', views.get_daily_facts, name='daily-facts'),
     path('questions/genre/25/', Genre25QuestionView.as_view(), name='genre_25_questions'), 
