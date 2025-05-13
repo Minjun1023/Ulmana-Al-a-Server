@@ -4,7 +4,8 @@ from myapp.views import (
     RegisterView, LoginView, FindIdView, ResetPasswordView, UserProfileView,
     get_random_explanations, get_daily_facts, Genre25QuestionView, Genre50QuestionView,
     SpeedQuizView, QuizSubmitView, get_quiz_results, get_wrong_answers, genre_score_summary, RankingView,
-    UpdateNicknameView,  # ✅ 닉네임 변경 뷰 import 추가
+    UpdateNicknameView, UpdateInterestView,
+    
 )
 
 urlpatterns = [
