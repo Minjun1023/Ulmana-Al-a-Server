@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 
-
+from django.db.models import F
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -254,7 +254,7 @@ class QuizSubmitView(generics.GenericAPIView):
                 correct_answer = str(question.answer).strip().lower()
 
                 is_correct = user_answer == correct_answer
-                score = 1 if is_correct else 0
+                score = 4 if is_correct else 0
 
                 if is_correct:
                     correct_count += 1
@@ -283,10 +283,21 @@ class QuizSubmitView(generics.GenericAPIView):
         quiz_session.end_time = timezone.now()  # 퀴즈 종료 시간 설정
         quiz_session.save()
 
-        # 사용자 누적 점수 업데이트
         if user.score is None:
             user.score = 0
         user.score += total_score
+
+        if quiz_type in ['test25', 'test50']:
+            user.solve_score = max(user.solve_score or 0, total_score)
+
+        if quiz_type == 'speed':
+            selected_time = str(request.data.get('selected_time'))
+
+            if selected_time in ["1min", "1", "60"]:  # 1분 스피드 허용
+                user.speed_score_1min = max(user.speed_score_1min or 0, total_score)
+            elif selected_time in ["3min", "3", "180"]:  # 3분 스피드 허용
+                user.speed_score_3min = max(user.speed_score_3min or 0, total_score)
+                
         user.save()
 
         return Response({
@@ -295,8 +306,7 @@ class QuizSubmitView(generics.GenericAPIView):
                 "총 문항 수": len(quiz_results),
                 "정답 수": correct_count,
                 "오답 수": wrong_count,
-                "획득 점수": total_score,
-                "누적 점수": user.score,
+                "획득 점수": total_score
             },
         }, status=status.HTTP_201_CREATED)
 
@@ -376,12 +386,17 @@ class WrongNoteSubmitView(APIView):
         user = request.user
         quiz_results = request.data.get("quiz_results")
         quiz_type = request.data.get("quiz_type", "wrong_note")
+        origin_session_id = request.data.get("origin_session_id")
+        total_questions = request.data.get("total_questions") or len(quiz_results)
 
         if not quiz_results:
             return Response({"message": "quiz_results가 필요합니다."}, status=400)
 
-        # 1) 이전 오답노트 세션 모두 삭제 (기타/NULL로 남아 있는 예전 기록 제거)
-        QuizSession.objects.filter(user=user, quiz_type=quiz_type).delete()
+        if origin_session_id:
+            QuizSession.objects.filter(id=origin_session_id, user=user).delete()
+        else:
+            # 기존 오답노트 세션 전부 제거 (기존 로직 유지)
+            QuizSession.objects.filter(user=user, quiz_type=quiz_type).delete()
 
         total_score = 0.0
         correct_count = 0
@@ -401,7 +416,7 @@ class WrongNoteSubmitView(APIView):
                 ua = opts.get(str(idx), "").strip().lower()
                 ca = str(q.answer).strip().lower()
                 is_correct = (ua == ca)
-                score = 0.5 if is_correct else 0.0
+                score = 1 if is_correct else 0.0
 
                 total_score += score
                 correct_count += int(is_correct)
@@ -414,7 +429,7 @@ class WrongNoteSubmitView(APIView):
             user=user,
             genre=first_genre,
             quiz_type=quiz_type,
-            total_questions=len(quiz_results),
+            total_questions=total_questions,
             correct_count=correct_count,
             wrong_count=wrong_count,
             total_score=total_score,
@@ -431,7 +446,7 @@ class WrongNoteSubmitView(APIView):
                 ua = opts.get(str(idx), "").strip().lower()
                 ca = str(q.answer)
                 is_correct = (ua == ca.strip().lower())
-                sc = 0.5 if is_correct else 0.0
+                sc = 1 if is_correct else 0.0
 
                 QuizResult.objects.create(
                     session=session,
@@ -444,10 +459,11 @@ class WrongNoteSubmitView(APIView):
             except Question.DoesNotExist:
                 continue
 
-        # 5) 유저 누적 점수 갱신 (0.5점 단위)
+        # 5) 유저 누적 점수 갱신 (0.2점 단위, 반올림 적용)
         if user.score is None:
             user.score = 0.0
-        user.score += total_score
+
+        user.score = round(user.score + total_score, 1)  # 🔥 부동소수점 정리
         user.save()
 
         return Response({
@@ -455,8 +471,7 @@ class WrongNoteSubmitView(APIView):
             "summary": {
                 "정답 수": correct_count,
                 "오답 수": wrong_count,
-                "총 점수": total_score,
-                "누적 점수": user.score
+                "총 점수": round(total_score,1)
             }
         }, status=status.HTTP_201_CREATED)
     
@@ -465,46 +480,71 @@ class RankingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        mode = request.query_params.get('mode', 'speed')
+        mode = request.query_params.get('mode', 'speed_1min')  # 기본값은 1분
+
+        print("💡 현재 mode:", mode)  # 디버깅
+        cache_key = f'ranking_{mode}'
+
+        # 캐시 사용 (문제 확인 후 주석 풀기)
+        # cached_data = cache.get(cache_key)
+        # if cached_data:
+        #     return Response(cached_data)
+
         user = request.user
-
-        if mode == 'solve':
-            users = CustomUser.objects.order_by('-solve_score')[:100]
-            score_field = 'solve_score'
-        elif mode == 'total':
-            users = CustomUser.objects.order_by('-total_score')[:100]
-            score_field = 'total_score'
-        else:  # default: speed
-            users = CustomUser.objects.order_by('-speed_score')[:100]
-            score_field = 'speed_score'
-
-        ranking_list = []
-        my_rank = None
-
-        for idx, u in enumerate(users, start=1):
-            if u.id == user.id:
-                my_rank = idx
-
-            ranking_list.append({
-                'rank': idx,
-                'nickname': u.username,
-                'profile_image': u.profileImage.url if u.profileImage else None,
-                'score': getattr(u, score_field),
-            })
-
-        if my_rank is None:
-            my_rank = CustomUser.objects.filter(**{
-                f"{score_field}__gt": getattr(user, score_field)
-            }).count() + 1
-
-        my_info = {
-            'rank': my_rank,
-            'nickname': user.username,
-            'profile_image': user.profileImage.url if user.profileImage else None,
-            'score': getattr(user, score_field),
+        ranking_data = {
+            'top_rankings': [],
+            'my_ranking': {}
         }
 
-        return Response({
-            'ranking': ranking_list,
-            'my_info': my_info
-        })
+        # 점수 필드 매핑
+        if mode == 'speed_1min':
+            score_field = 'speed_score_1min'
+        elif mode == 'speed_3min':
+            score_field = 'speed_score_3min'
+        elif mode == 'solve':
+            score_field = 'solve_score'
+        elif mode == 'total':
+            score_field = 'score'
+        else:
+            return Response({'error': '유효하지 않은 mode입니다. (speed_1min, speed_3min, solve, total 중 선택)'}, status=400)
+
+        # 점수 안전 추출 함수
+        def get_user_score(u, field):
+            return {
+                'speed_score_1min': u.speed_score_1min,
+                'speed_score_3min': u.speed_score_3min,
+                'solve_score': u.solve_score,
+                'score': u.score,
+            }.get(field, 0)
+
+        users = CustomUser.objects.order_by(F(score_field).desc(nulls_last=True))[:100]
+
+        for rank, user_obj in enumerate(users, start=1):
+            score = get_user_score(user_obj, score_field)
+            ranking_data['top_rankings'].append({
+                'rank': rank,
+                'nickname': user_obj.username,
+                'profile_image': user_obj.profile_image.url if user_obj.profile_image else None,
+                'score': score
+            })
+
+            if user_obj.id == user.id:
+                ranking_data['my_ranking'] = ranking_data['top_rankings'][-1]
+
+        # 100위 밖 유저
+        if not ranking_data['my_ranking']:
+            my_score = get_user_score(user, score_field)
+            higher_count = CustomUser.objects.only(score_field).filter(
+                **{f"{score_field}__gt": my_score}
+            ).count()
+
+            ranking_data['my_ranking'] = {
+                'rank': higher_count + 1,
+                'nickname': user.username,
+                'profile_image': user.profile_image.url if user.profile_image else None,
+                'score': my_score
+            }
+
+        # 캐싱 적용 (필요 시 다시 활성화)
+        # cache.set(cache_key, ranking_data, 300)
+        return Response(ranking_data)
