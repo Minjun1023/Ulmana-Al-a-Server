@@ -31,6 +31,10 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=20, unique=True)
     score = models.FloatField(default=0.0) 
+    profile_image = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    speed_score_1min = models.IntegerField(default=0)
+    speed_score_3min = models.IntegerField(default=0)
+    solve_score = models.IntegerField(default=0)
 
     interest_1 = models.CharField(max_length=100, blank=True, null=True)
     interest_2 = models.CharField(max_length=100, blank=True, null=True)
@@ -46,6 +50,15 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.email
+
+    # 점수 업데이트 메서드
+    def update_speed_score(self, correct_answers, time_limit):
+        if time_limit == "1min":
+            self.speed_score_1min = max(self.speed_score_1min, correct_answers)
+        elif time_limit == "3min":
+            self.speed_score_3min = max(self.speed_score_3min, correct_answers)
+        self.save()
+    
 
 # 장르 모델
 class Genre(models.Model):

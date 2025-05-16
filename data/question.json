@@ -864,7 +864,7 @@
             "option2": "아래(down)",
             "option3": "이상(strange)",
             "option4": "중성(neutral)",
-            "answer": "중性(neutral)",
+            "answer": "중성(neutral)",
             "explanation": "6가지 쿼크: 위, 아래, 매력, 기묘, 꼭대기, 바닥.",
             "genre_id": 1
           },

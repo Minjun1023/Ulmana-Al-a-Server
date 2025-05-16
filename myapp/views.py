@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from django.db.models import F
 from django.utils import timezone
@@ -42,20 +44,33 @@ class RegisterView(generics.CreateAPIView):
             'data': response.data
         })
 
-
-# ✅ 로그인 (JWT 발급)
+# ✅ 로그인 (수정된 LoginView)
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data
+
         refresh = RefreshToken.for_user(user)
+
+        interests = []
+        if user.interest_1:
+            interests.append(user.interest_1)
+        if user.interest_2:
+            interests.append(user.interest_2)
+        if user.interest_3:
+            interests.append(user.interest_3)
+
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-        })
+            'email': user.email,
+            'username': user.username,
+            'interests': interests,
+        }, status=status.HTTP_200_OK)
 
 
 # ✅ 아이디(이메일) 찾기
@@ -101,7 +116,51 @@ class UserProfileView(APIView):
         user = request.user
         serializer = UserSerializer(user)
         return Response(serializer.data)
+# ✅ 닉네임 변경
+class UpdateNicknameView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def patch(self, request):
+        new_nickname = request.data.get("username")
+
+        if not new_nickname:
+            return Response({"error": "닉네임을 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        user.username = new_nickname
+        user.save()
+
+        return Response({"message": "닉네임이 성공적으로 변경되었습니다."}, status=status.HTTP_200_OK)
+
+# ✅ 관심 분야 변경
+class UpdateInterestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+
+        # 요청에서 새로운 관심 분야 받아오기
+        interest_1 = request.data.get("interest_1")
+        interest_2 = request.data.get("interest_2")
+        interest_3 = request.data.get("interest_3")
+
+        # 최소한 하나라도 값이 있어야 변경 가능
+        if not any([interest_1, interest_2, interest_3]):
+            return Response(
+                {"error": "최소 하나 이상의 관심 분야를 선택해야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 저장 (None도 허용됨)
+        user.interest_1 = interest_1
+        user.interest_2 = interest_2
+        user.interest_3 = interest_3
+        user.save()
+
+        return Response(
+            {"message": "관심 분야가 성공적으로 변경되었습니다."},
+            status=status.HTTP_200_OK
+        )
 
 # ✅ JWT 기반 해설 제공
 @api_view(['GET'])
@@ -310,6 +369,35 @@ class QuizSubmitView(generics.GenericAPIView):
             },
         }, status=status.HTTP_201_CREATED)
 
+# 프로필 이미지 업로드
+class UploadProfileImageView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        user = request.user
+        profile_image = request.FILES.get('profile_image')
+
+        if not profile_image:
+            return Response({"error": "이미지 파일이 필요합니다."}, status=400)
+
+        user.profile_image = profile_image
+        user.save()
+
+        return Response({
+            "message": "프로필 이미지가 성공적으로 업로드되었습니다.",
+            "profile_image_url": user.profile_image.url
+        }, status=200)
+    
+# 마이페이지 최근 퀴즈 내역
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_quiz_results(request):
+    user = request.user
+    quiz_results = QuizResult.objects.filter(session__user=user).order_by('-submission_time')[:10]
+
+    serializer = QuizResultSerializer(quiz_results, many=True)
+    return Response(serializer.data)
 
 # 최근 퀴즈 결과
 @api_view(['GET'])

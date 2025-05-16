@@ -102,7 +102,7 @@ class QuizResultSerializer(serializers.ModelSerializer):
         model = QuizResult
         fields = [
             'question', 'question_text', 'user_answer', 'correct_answer',
-            'is_correct', 'score', 'submission_time', 'explanation', 'genre_name'
+            'is_correct', 'score', 'submission_time', 'explanation', 'genre_name', 
         ]
 
     def get_correct_count(self, obj):
@@ -116,7 +116,7 @@ class QuizResultSerializer(serializers.ModelSerializer):
         user_answer = validated_data['user_answer']
         correct_answer = question.answer
         is_correct = user_answer == correct_answer
-        score = 1 if is_correct else 0
+        score = 4 if is_correct else 0
 
         # 퀴즈 결과 생성
         quiz_result = QuizResult.objects.create(
@@ -135,6 +135,7 @@ class QuizResultSerializer(serializers.ModelSerializer):
         user.save()
 
         return quiz_result
+
 
 class QuizSummarySerializer(serializers.Serializer):
     score = serializers.IntegerField()
