@@ -368,7 +368,7 @@ class QuizSubmitView(generics.GenericAPIView):
                 "획득 점수": total_score
             },
         }, status=status.HTTP_201_CREATED)
-
+    
 # 프로필 이미지 업로드
 class UploadProfileImageView(APIView):
     permission_classes = [IsAuthenticated]
@@ -377,16 +377,17 @@ class UploadProfileImageView(APIView):
     def post(self, request):
         user = request.user
         profile_image = request.FILES.get('profile_image')
-
         if not profile_image:
             return Response({"error": "이미지 파일이 필요합니다."}, status=400)
 
         user.profile_image = profile_image
         user.save()
 
+        # 절대 URL로 변환
+        absolute_url = request.build_absolute_uri(user.profile_image.url)
         return Response({
             "message": "프로필 이미지가 성공적으로 업로드되었습니다.",
-            "profile_image_url": user.profile_image.url
+            "profile_image_url": absolute_url
         }, status=200)
     
 # 마이페이지 최근 퀴즈 내역
