@@ -389,6 +389,19 @@ class UploadProfileImageView(APIView):
             "message": "프로필 이미지가 성공적으로 업로드되었습니다.",
             "profile_image_url": absolute_url
         }, status=200)
+
+# 프로필 이미지 초기화
+class ResetProfileImageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.profile_image.delete(save=False)  # 서버에서 실제 파일 삭제
+        user.profile_image = None
+        user.save()
+        return Response({
+            "message": "프로필 이미지가 기본 이미지로 초기화되었습니다."
+        }, status=200)
     
 # 마이페이지 최근 퀴즈 내역
 @api_view(['GET'])

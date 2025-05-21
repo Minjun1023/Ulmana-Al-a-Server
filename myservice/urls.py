@@ -3,7 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from myapp import views
 from myapp.views import (
-    RegisterView, LoginView, FindIdView, ResetPasswordView, UserProfileView, UploadProfileImageView, UpdateNicknameView, UpdateInterestsView, get_quiz_results,
+    RegisterView, LoginView, FindIdView, ResetPasswordView, UserProfileView, UploadProfileImageView, ResetProfileImageView, UpdateNicknameView, UpdateInterestsView, get_quiz_results,
     get_random_explanations, get_daily_facts, Genre25QuestionView, Genre50QuestionView,
     SpeedQuizView, QuizSubmitView, get_quiz_sessions, QuestionDetailView, WrongNoteSubmitView, RankingView
 )
@@ -15,6 +15,7 @@ urlpatterns = [
     path('reset-password/', views.ResetPasswordView.as_view(), name='resetpassword'), # 비밀번호 찾기
     path('profile/', views.UserProfileView.as_view(), name='user-profile'), # 유저 프로필
     path('user/upload-profile-image/', UploadProfileImageView.as_view(), name='upload-profile-image'), # 이미지 파일 업로드 API
+    path("reset-profile-image/", ResetProfileImageView.as_view(), name="reset_profile_image"), # 프로필 이미지 초기화 API
     path('profile/update-nickname/', UpdateNicknameView.as_view(), name='update-nickname'),# ✅ 닉네임 변경 URL 추가
     path("profile/update-interests/", UpdateInterestsView.as_view(), name="update-interests"), # ✅ 관심 분야 변경 URL 추가
     path('quiz-results/', get_quiz_results, name='quiz_result'), # 마이페이지 최근 퀴즈 내역
