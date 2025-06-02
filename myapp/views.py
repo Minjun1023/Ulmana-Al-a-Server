@@ -7,7 +7,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from django.db.models import F
+from django.db.models.functions import NullIf
+from django.db.models import F, FloatField, ExpressionWrapper, Case, Count, Sum, When, IntegerField, Q
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -16,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 
-from .models import CustomUser, Question, Genre, QuizResult, QuizSession
+from .models import CustomUser, Question, Genre, QuizResult, QuizSession, QuestionStat
 from .serializers import (
     UserSerializer,
     LoginSerializer,
@@ -24,7 +25,8 @@ from .serializers import (
     ResetPasswordSerializer,
     QuestionSerializer,
     QuizResultSerializer,
-    QuizSessionSerializer
+    QuizSessionSerializer,
+    QuestionStatSerializer
 
 )
 
@@ -320,7 +322,7 @@ class QuizSubmitView(generics.GenericAPIView):
                 else:
                     wrong_count += 1
 
-                # 결과 저장
+                # 결과 저장 - 보기 선택한 경우에만 QuestionStat 업데이트
                 QuizResult.objects.create(
                     session=quiz_session,
                     question=question,
@@ -329,6 +331,14 @@ class QuizSubmitView(generics.GenericAPIView):
                     is_correct=is_correct,
                     score=score
                 )
+
+                # 오직 보기 선택한 경우만 QuestionStat 반영
+                if user_answer and user_answer.strip():
+                    question_stat, created = QuestionStat.objects.get_or_create(question=question)
+                    question_stat.total_attempts += 1
+                    if is_correct:
+                        question_stat.correct_attempts += 1
+                    question_stat.save()
 
                 total_score += score
 
@@ -558,6 +568,13 @@ class WrongNoteSubmitView(APIView):
                     is_correct=is_correct,
                     score=sc
                 )
+
+                question_stat, created = QuestionStat.objects.get_or_create(question=q)
+                question_stat.total_attempts += 1
+                if is_correct:
+                    question_stat.correct_attempt += 1
+                question_stat.save()
+                
             except Question.DoesNotExist:
                 continue
 
@@ -650,3 +667,55 @@ class RankingView(APIView):
         # 캐싱 적용 (필요 시 다시 활성화)
         # cache.set(cache_key, ranking_data, 300)
         return Response(ranking_data)
+    
+# 정답률에 따른 문제 추천
+
+class DailyRecommendationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # 관심 장르 추출
+        raw_ids = [user.interest_1, user.interest_2, user.interest_3]
+        try:
+            interest_ids = [int(i) for i in raw_ids if i]
+        except ValueError:
+            interest_ids = []
+
+        # ✅ 보기 선택된 문제만 필터링
+        user_results = QuizResult.objects.filter(
+            Q(user_answer__isnull=False) & ~Q(user_answer=""),
+            session__user=user,
+            session__genre__genre_id__in=interest_ids
+        ).values('question').annotate(
+            total=Count('id'),
+            correct=Sum(Case(
+                When(is_correct=True, then=1),
+                default=0,
+                output_field=IntegerField()
+            )),
+            accuracy=ExpressionWrapper(
+                F('correct') * 100.0 / F('total'),
+                output_field=FloatField()
+            )
+        ).filter(total__gt=0).order_by('accuracy')[:10]
+
+        question_ids = [r['question'] for r in user_results]
+        accuracy_dict = {r['question']: r['accuracy'] for r in user_results}
+
+        questions = []
+        for qid in question_ids:
+            try:
+                q = Question.objects.get(pk=qid)
+                q.accuracy_rate = accuracy_dict.get(qid)
+                questions.append(q)
+            except Question.DoesNotExist:
+                continue
+
+        # ✅ 아무 문제도 없으면 빈 리스트 반환
+        if not questions:
+            return Response([])
+
+        serializer = QuestionSerializer(questions, many=True)
+        return Response(serializer.data)

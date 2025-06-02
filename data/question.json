@@ -732,7 +732,7 @@
             "option2": "유체 역학",
             "option3": "열역학 법칙",
             "option4": "광학 반사",
-            "answer": "전자기力 방향",
+            "answer": "전자기력 방향",
             "explanation": "전류, 자기장, 힘의 방향을 왼손으로 결정합니다.",
             "genre_id": 1
           },
@@ -743,7 +743,7 @@
             "option2": "전기력",
             "option3": "자기력",
             "option4": "핵력",
-            "answer": "전기力",
+            "answer": "전기력",
             "explanation": "두 전하 사이의 힘을 설명하는 법칙(F=kq₁q₂/r²).",
             "genre_id": 1
           },
@@ -930,7 +930,7 @@
             "option2": "전기력",
             "option3": "마찰력",
             "option4": "탄성력",
-            "answer": "마찰力",
+            "answer": "마찰력",
             "explanation": "마찰력은 비보존력으로 에너지 손실이 발생합니다.",
             "genre_id": 1
           },
@@ -1029,7 +1029,7 @@
             "option2": "글루온",
             "option3": "Z보손",
             "option4": "중성자",
-            "answer": "중性子",
+            "answer": "중성자",
             "explanation": "중성자는 강한 상호작용의 매개체가 아닌 페르미온입니다.",
             "genre_id": 1
           },
@@ -1084,7 +1084,7 @@
             "option2": "아인슈타인 - 광전효과",
             "option3": "보어 - 원자 모형",
             "option4": "뉴턴 - 중력",
-            "answer": "뉴턴 - 중力",
+            "answer": "뉴턴 - 중력",
             "explanation": "뉴턴은 노벨상이 제정되기 전 시대 인물입니다.",
             "genre_id": 1
           },

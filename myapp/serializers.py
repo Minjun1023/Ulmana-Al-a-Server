@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import CustomUser, Genre, Question, QuizResult, QuizSession
+from .models import CustomUser, Genre, Question, QuizResult, QuizSession, QuestionStat
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import User
@@ -87,11 +87,20 @@ class ResetPasswordSerializer(serializers.Serializer):
         user = User.objects.get(email=email)
         user.set_password(new_password)
         user.save()
-
 class QuestionSerializer(serializers.ModelSerializer):
+    genre_name = serializers.CharField(source='genre.genre_name', read_only=True)
+    accuracy = serializers.SerializerMethodField()
+    correct_answer = serializers.CharField(source='answer', read_only=True)
+
     class Meta:
         model = Question
-        fields = ['question_id', 'question_text', 'option1', 'option2', 'option3', 'option4']
+        fields = [
+            'question_id', 'question_text', 'option1', 'option2', 'option3', 'option4',
+            'answer', 'genre_name', 'accuracy', 'correct_answer', 'explanation'
+        ]
+
+    def get_accuracy(self, obj):
+        return getattr(obj, 'accuracy_rate', None)
 
 class QuizResultSerializer(serializers.ModelSerializer):
     question_text = serializers.CharField(source='question.question_text', read_only=True)
@@ -187,3 +196,25 @@ class QuizSessionSerializer(serializers.ModelSerializer):
             'totalScore',
             'quizResults',
         ]
+class QuestionStatSerializer(serializers.ModelSerializer):
+    question_text = serializers.CharField(source='question.question_text', read_only=True)
+    option1 = serializers.CharField(source='question.option1', read_only=True)
+    option2 = serializers.CharField(source='question.option2', read_only=True)
+    option3 = serializers.CharField(source='question.option3', read_only=True)
+    option4 = serializers.CharField(source='question.option4', read_only=True)
+    explanation = serializers.CharField(source='question.explanation', read_only=True)
+    genre_name = serializers.CharField(source='question.genre.genre_name', read_only=True)
+    correct_answer = serializers.CharField(source='question.answer', read_only=True)
+    accuracy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QuestionStat
+        fields = [
+            'question_text', 'option1', 'option2', 'option3', 'option4',
+            'correct_answer', 'explanation', 'genre_name', 'accuracy'
+        ]
+
+    def get_accuracy(self, obj):
+        if obj.total_attempts == 0:
+            return None
+        return round((obj.correct_attempts / obj.total_attempts) * 100, 1)

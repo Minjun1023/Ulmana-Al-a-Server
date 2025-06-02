@@ -5,7 +5,7 @@ from myapp import views
 from myapp.views import (
     RegisterView, LoginView, FindIdView, ResetPasswordView, UserProfileView, UploadProfileImageView, ResetProfileImageView, UpdateNicknameView, UpdateInterestsView, get_quiz_results,
     get_random_explanations, get_daily_facts, Genre25QuestionView, Genre50QuestionView,
-    SpeedQuizView, QuizSubmitView, get_quiz_sessions, QuestionDetailView, WrongNoteSubmitView, RankingView
+    SpeedQuizView, QuizSubmitView, get_quiz_sessions, QuestionDetailView, WrongNoteSubmitView, RankingView, DailyRecommendationView
 )
 
 urlpatterns = [
@@ -28,7 +28,8 @@ urlpatterns = [
     path('quiz/sessions/', get_quiz_sessions, name='quiz_session'), # 최근 퀴즈 결과
     path('questions/<int:question_id>/details/', QuestionDetailView.as_view(), name='question-detail'), # 문제 및 해설
     path("wrong-note-submit/", WrongNoteSubmitView.as_view(), name="wrong-note-submit"), # 오답노트 퀴즈 제출
-    path('quiz/ranking/', RankingView.as_view(), name='ranking'), # 랭킹    
+    path('quiz/ranking/', RankingView.as_view(), name='ranking'), # 랭킹
+    path('recommend/daily/', DailyRecommendationView.as_view(), name='daily-recommendation'), # 정답률에 따른 문제 추천
 ]
 
 if settings.DEBUG:

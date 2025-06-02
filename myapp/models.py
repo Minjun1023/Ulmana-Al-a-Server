@@ -110,3 +110,15 @@ class QuizResult(models.Model):
 
     def __str__(self):
         return f"{self.session.user.username} - Q{self.question.question_id} - {'O' if self.is_correct else 'X'}"
+
+# 정답률에 따른 문제 추천 모델
+class QuestionStat(models.Model):
+    question = models.OneToOneField(Question, on_delete=models.CASCADE, related_name='stats')
+    total_attempts = models.PositiveIntegerField(default=0)
+    correct_attempts = models.PositiveIntegerField(default=0)
+
+    @property
+    def accuracy_rate(self):
+        if self.total_attempts == 0:
+            return 0.0
+        return round((self.correct_attempts / self.total_attempts) * 100, 1)

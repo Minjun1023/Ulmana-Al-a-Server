@@ -21,7 +21,9 @@ class Command(BaseCommand):
                 except Genre.DoesNotExist:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"[SKIP] genre_id {row['genre_id']}를 찾을 수 없습니다. 문제: '{row['question'][:30]}...'"))
+                            f"[SKIP] genre_id {row['genre_id']}를 찾을 수 없습니다. 문제: '{row['question_text'][:30]}...'"
+                        )
+                    )
                     skipped_count += 1
                     continue
 
