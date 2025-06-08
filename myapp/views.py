@@ -686,7 +686,7 @@ class DailyRecommendationView(APIView):
         # ✅ 보기 선택된 문제만 필터링
         user_results = QuizResult.objects.filter(
             Q(user_answer__isnull=False) & ~Q(user_answer=""),
-            session__user=user,
+            # session__user=user,
             session__genre__genre_id__in=interest_ids
         ).values('question').annotate(
             total=Count('id'),
