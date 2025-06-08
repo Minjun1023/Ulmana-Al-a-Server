@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 
 AUTH_USER_MODEL = "myapp.CustomUser"
 
@@ -141,4 +142,13 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
+}
+
+# JWT 토큰 인증 기간
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),  # 액세스 토큰 유효기간 (기본: 5분 → 여기선 1일로 설정)
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),  # 리프레시 토큰 유효기간
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
