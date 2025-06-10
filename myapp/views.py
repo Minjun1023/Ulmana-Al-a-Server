@@ -572,7 +572,7 @@ class WrongNoteSubmitView(APIView):
                 question_stat, created = QuestionStat.objects.get_or_create(question=q)
                 question_stat.total_attempts += 1
                 if is_correct:
-                    question_stat.correct_attempt += 1
+                    question_stat.correct_attempts += 1
                 question_stat.save()
                 
             except Question.DoesNotExist:
