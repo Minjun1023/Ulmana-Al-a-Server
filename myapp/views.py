@@ -10,7 +10,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models.functions import NullIf
 from django.db.models import F, FloatField, ExpressionWrapper, Case, Count, Sum, When, IntegerField, Q
 from django.utils import timezone
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.contrib.auth import get_user_model
@@ -29,6 +29,12 @@ from .serializers import (
     QuestionStatSerializer
 
 )
+
+# keep-alive 명시
+def index(request):
+    response = HttpResponse("Hello from Django!")
+    response['Connection'] = 'keep-alive'
+    return response
 
 import random
 

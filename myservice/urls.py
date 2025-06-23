@@ -9,6 +9,7 @@ from myapp.views import (
 )
 
 urlpatterns = [
+    path('', views.index),
     path('register/', views.RegisterView.as_view(), name='register'), # 회원가입
     path('login/', views.LoginView.as_view(), name='login'), # 로그인
     path('find-id/', views.FindIdView.as_view(), name='findid'), # 아이디 찾기
