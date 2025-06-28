@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ulmana-al-a
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn myservice.wsgi:application"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: myservice.settings
+      - key: SECRET_KEY
+        value: your-django-secret-key
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ulmana-db
+          property: connectionString
+
+databases:
+  - name: ulmana-db
+    databaseName: ulmana
+    user: ulmana_user

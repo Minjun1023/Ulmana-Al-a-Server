@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+import dj_database_url
 
 AUTH_USER_MODEL = "myapp.CustomUser"
 
@@ -17,17 +18,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-if not SECRET_KEY:
-    raise Exception("DJANGO_SECRET_KEY 환경변수가 설정되어 있지 않습니다.")
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-dev-secret")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ['*']
-# ALLOWED_HOSTS = ['almanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com','3.36.128.149','localhost']
-
+ALLOWED_HOSTS = ['.onrender.com']
 
 # Application definition
 
@@ -84,18 +79,11 @@ WSGI_APPLICATION = 'myservice.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',  # MySQL 사용
-        'NAME': 'UlmanaAla_Main',                  # 생성한 데이터베이스 이름
-        'USER': 'admin',                      # MySQL 사용자
-        'PASSWORD': '20200993',              # MySQL 비밀번호
-        'HOST': 'almanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com',                   # 로컬 MySQL 서버
-        'PORT': '3306',                        # 기본 MySQL 포트
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
+    'default': dj_database_url.config(conn_max_age=600, ssl_require=True)
 }
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
