@@ -86,10 +86,10 @@ WSGI_APPLICATION = 'myservice.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',  # MySQL 사용
-        'NAME': 'UlmanaAla_Main',                  # 생성한 데이터베이스 이름
+        'NAME': 'UlmanaAla',                  # 생성한 데이터베이스 이름
         'USER': 'admin',                      # MySQL 사용자
-        'PASSWORD': '20200993',              # MySQL 비밀번호
-        'HOST': 'almanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com',                   # 로컬 MySQL 서버
+        'PASSWORD': '20011023',              # MySQL 비밀번호
+        'HOST': 'ulmanaala.ch2im8y0oxmd.ap-northeast-2.rds.amazonaws.com',                   # 로컬 MySQL 서버
         'PORT': '3306',                        # 기본 MySQL 포트
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
